@@ -14,7 +14,25 @@ impl Processer {
         &self,
         messages: &Vec<Message>,
     ) -> Result<Vec<(VarScope, String, TypedData)>> {
-        info!("{:?}", messages);
+        for msg in messages {
+            info!("msg: {}", msg.name);
+
+            msg.args.iter().for_each(|(k, v)| match v {
+                TypedData::Binary(b) => {
+                    info!(
+                        "{}: {}",
+                        k,
+                        String::from_utf8_lossy(&b[0..b.len().min(1024)])
+                    )
+                }
+                TypedData::String(s) => {
+                    info!("{}: {}", k, s)
+                }
+                _ => {
+                    info!("{}", k)
+                }
+            })
+        }
 
         Ok(Vec::new())
     }

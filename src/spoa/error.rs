@@ -7,6 +7,12 @@ pub enum Error {
     #[error(transparent)]
     IO(#[from] std::io::Error),
 
+    #[error("read timeout")]
+    ReadTimeout,
+
+    #[error("write timeout")]
+    WriteTimeout,
+
     #[error("invalid haproxy hello, {}", .0)]
     InvalidHaproxyHello(String),
 

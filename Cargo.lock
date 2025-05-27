@@ -610,9 +610,9 @@ checksum = "8917285742e9f3e1683f0a9c4e6b57960b7314d0b08d30d1ecd426713ee2eee9"
 
 [[package]]
 name = "socket2"
-version = "0.5.9"
+version = "0.5.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f5fd57c80058a56cf5c777ab8a126398ece8e442983605d280a44ce79d0edef"
+checksum = "e22376abed350d73dd1cd119b57ffccad95b4e585a7cda43e286245ce23c0678"
 dependencies = [
  "libc",
  "windows-sys 0.52.0",
@@ -621,8 +621,7 @@ dependencies = [
 [[package]]
 name = "spop"
 version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc126dd22a81e572ef0633849f85507a0b4f4472f1147713304d174990985931"
+source = "git+https://github.com/pangbit/spop.git#ce468043104379ce1ca8412c0e18ed49553810a0"
 dependencies = [
  "anyhow",
  "bytes",
@@ -994,6 +993,7 @@ dependencies = [
  "lz4_flex",
  "num_enum",
  "semver",
+ "socket2",
  "spop",
  "thiserror",
  "tokio",

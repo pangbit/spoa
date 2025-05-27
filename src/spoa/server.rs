@@ -34,6 +34,9 @@ struct Handler {
     _shutdown_complete: mpsc::Sender<()>,
 
     processer: Arc<Processer>,
+
+    read_timeout: Duration,
+    write_timeout: Duration,
 }
 
 const MAX_CONNECTIONS: usize = 8192;
@@ -100,6 +103,9 @@ impl Listener {
                 _shutdown_complete: self.shutdown_complete_tx.clone(),
 
                 processer: Arc::clone(&self.processer),
+
+                read_timeout: Duration::from_secs(30),
+                write_timeout: Duration::from_secs(30),
             };
 
             tokio::spawn(async move {
@@ -141,6 +147,9 @@ impl Handler {
                 _ = self.shutdown.recv() => {
                     return Ok(());
                 }
+                _ = time::sleep(self.read_timeout) => {
+                    return Err(Error::ReadTimeout);
+                }
             };
 
             let frame = match maybe_frame {
@@ -175,10 +184,13 @@ impl Handler {
 
                     info!("Sending AgentHello: {:?}", agent_hello.payload());
 
-                    match self.socket.send(Box::new(agent_hello)).await {
-                        Ok(_) => info!("Frame sent successfully"),
-                        Err(e) => error!("Failed to send frame: {:?}", e),
-                    }
+                    match time::timeout(self.write_timeout, self.socket.send(Box::new(agent_hello)))
+                        .await
+                    {
+                        Ok(Ok(_)) => {}
+                        Ok(Err(e)) => return Err(e.into()),
+                        Err(_) => return Err(Error::WriteTimeout),
+                    };
 
                     // If "healthcheck" item was set to TRUE in the HAPROXY-HELLO frame, the
                     // agent can safely close the connection without DISCONNECT frame. In all
@@ -198,8 +210,16 @@ impl Handler {
 
                     info!("Sending AgentDisconnect: {:?}", agent_disconnect.payload());
 
-                    self.socket.send(Box::new(agent_disconnect)).await?;
-                    self.socket.close().await?;
+                    match time::timeout(
+                        self.write_timeout,
+                        self.socket.send(Box::new(agent_disconnect)),
+                    )
+                    .await
+                    {
+                        Ok(Ok(_)) => self.socket.close().await?,
+                        Ok(Err(e)) => return Err(e.into()),
+                        Err(_) => return Err(Error::WriteTimeout),
+                    }
 
                     return Ok(());
                 }
@@ -217,7 +237,13 @@ impl Handler {
 
                         // Create the response frame
                         info!("Sending Ack: {:?}", ack.payload());
-                        self.socket.send(Box::new(ack)).await?;
+                        match time::timeout(self.write_timeout, self.socket.send(Box::new(ack)))
+                            .await
+                        {
+                            Ok(Ok(_)) => {}
+                            Ok(Err(e)) => return Err(e.into()),
+                            Err(_) => return Err(Error::WriteTimeout),
+                        }
                     }
                 }
 
