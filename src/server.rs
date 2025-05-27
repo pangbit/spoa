@@ -229,13 +229,21 @@ impl Handler {
                 // Respond with Ack frame
                 FrameType::Notify => {
                     if let FramePayload::ListOfMessages(messages) = &frame.payload() {
-                        let vars = self.processer.handle_messages(messages).await?;
+                        let meta = frame.metadata();
 
-                        // Create the Ack frame
-                        let ack = vars.into_iter().fold(
-                            Ack::new(frame.metadata().stream_id, frame.metadata().frame_id),
-                            |ack, (scope, name, value)| ack.set_var(scope, &name, value),
-                        );
+                        let ack = match self.processer.handle_messages(messages).await {
+                            Ok(vars) => {
+                                // Create the Ack frame
+                                vars.into_iter().fold(
+                                    Ack::new(meta.stream_id, meta.frame_id),
+                                    |ack, (scope, name, value)| ack.set_var(scope, &name, value),
+                                )
+                            }
+                            Err(e) => {
+                                error!("processer handle_messages failed: {}", e);
+                                Ack::new(meta.stream_id, meta.frame_id)
+                            }
+                        };
 
                         // Create the response frame
                         info!("Sending Ack: {:?}", ack.payload());
