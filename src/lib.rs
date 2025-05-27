@@ -1,2 +1,8 @@
+mod error;
+pub use error::Error;
+pub use error::Result;
 
-pub mod spoa; 
+mod shutdown;
+use shutdown::Shutdown;
+
+pub mod server;

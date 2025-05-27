@@ -3,45 +3,52 @@ use std::sync::Arc;
 
 use futures::{SinkExt, StreamExt};
 use semver::Version;
+use spop::frame::Message;
 use spop::frames::{Ack, AgentDisconnect, AgentHello, FrameCapabilities, HaproxyHello};
-use spop::{FramePayload, FrameType, SpopCodec, SpopFrame};
+use spop::{FramePayload, FrameType, SpopCodec, SpopFrame, TypedData, VarScope};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{Semaphore, broadcast, mpsc};
 use tokio::time::{self, Duration};
 use tokio_util::codec::Framed;
 use tracing::{error, info, instrument};
 
-use super::process::Processer;
 use super::{Error, Result, Shutdown};
 
-// #[derive(Debug)]
+#[async_trait::async_trait]
+pub trait IProcesser {
+    async fn handle_messages(
+        &self,
+        messages: &Vec<Message>,
+    ) -> Result<Vec<(VarScope, String, TypedData)>>;
+}
+
 struct Listener {
     listener: TcpListener,
     limit_connections: Arc<Semaphore>,
     notify_shutdown: broadcast::Sender<()>,
     shutdown_complete_tx: mpsc::Sender<()>,
 
-    processer: Arc<Processer>,
+    processer: Arc<Box<dyn IProcesser + Sync + Send>>,
 }
 
-// #[derive(Debug)]
 struct Handler {
-    // connection: Connection,
     socket: Framed<TcpStream, SpopCodec>,
-
-    shutdown: Shutdown,
-
-    _shutdown_complete: mpsc::Sender<()>,
-
-    processer: Arc<Processer>,
-
     read_timeout: Duration,
     write_timeout: Duration,
+
+    shutdown: Shutdown,
+    _shutdown_complete: mpsc::Sender<()>,
+
+    processer: Arc<Box<dyn IProcesser + Sync + Send>>,
 }
 
-const MAX_CONNECTIONS: usize = 8192;
+const MAX_CONNECTIONS: usize = 100_000;
 
-pub async fn run(listener: TcpListener, processer: Arc<Processer>, shutdown: impl Future) {
+pub async fn run(
+    listener: TcpListener,
+    processer: Arc<Box<dyn IProcesser + Sync + Send>>,
+    shutdown: impl Future,
+) {
     let (notify_shutdown, _) = broadcast::channel(1);
     let (shutdown_complete_tx, mut shutdown_complete_rx) = mpsc::channel(1);
 
@@ -65,10 +72,6 @@ pub async fn run(listener: TcpListener, processer: Arc<Processer>, shutdown: imp
             info!("shutting down");
         }
     }
-
-    // drop(server.notify_shutdown);
-    // drop(server.shutdown_complete_tx);
-    // server.shutdown_complete_rx.recv().await;
 
     let Listener {
         shutdown_complete_tx,
@@ -97,7 +100,6 @@ impl Listener {
             let socket = self.accept().await?;
 
             let mut handler = Handler {
-                // connection: Connection::new(socket),
                 socket: Framed::new(socket, SpopCodec),
                 shutdown: Shutdown::new(self.notify_shutdown.subscribe()),
                 _shutdown_complete: self.shutdown_complete_tx.clone(),
@@ -227,7 +229,7 @@ impl Handler {
                 // Respond with Ack frame
                 FrameType::Notify => {
                     if let FramePayload::ListOfMessages(messages) = &frame.payload() {
-                        let vars = self.processer.handle_frame(messages).await?;
+                        let vars = self.processer.handle_messages(messages).await?;
 
                         // Create the Ack frame
                         let ack = vars.into_iter().fold(
