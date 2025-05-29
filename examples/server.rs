@@ -3,7 +3,7 @@ use std::{net::SocketAddr, sync::Arc};
 use anyhow::Result;
 use socket2::{Domain, Socket, Type};
 use spop::{TypedData, VarScope, frame::Message};
-use tokio::{net::TcpListener, signal};
+use tokio::{net::TcpListener, signal, sync::RwLock};
 use tracing::info;
 
 use spoa::{self, server::IProcesser};
@@ -19,28 +19,28 @@ impl IProcesser for MyProcesser {
         for msg in messages {
             info!("msg: {}", msg.name);
 
-            msg.args.iter().for_each(|(k, v)| match v {
-                TypedData::Binary(b) => {
-                    info!(
-                        "{}: {}",
-                        k,
-                        String::from_utf8_lossy(&b[0..b.len().min(1024)])
-                    )
-                }
-                TypedData::String(s) => {
-                    info!("{}: {}", k, s)
-                }
-                _ => {
-                    info!("{}", k)
-                }
-            })
+            // msg.args.iter().for_each(|(k, v)| match v {
+            //     TypedData::Binary(b) => {
+            //         info!(
+            //             "{}: {}",
+            //             k,
+            //             String::from_utf8_lossy(&b[0..b.len().min(1024)])
+            //         )
+            //     }
+            //     TypedData::String(s) => {
+            //         info!("{}: {}", k, s)
+            //     }
+            //     _ => {
+            //         info!("{}", k)
+            //     }
+            // })
         }
 
         Ok(Vec::new())
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt().init();
     info!("启动");
@@ -60,7 +60,7 @@ async fn main() -> Result<()> {
     let listener = TcpListener::from_std(socket.into())?;
     let processer = Box::new(MyProcesser {});
 
-    spoa::server::run(listener, Arc::new(processer), signal::ctrl_c()).await;
+    spoa::server::run(listener, Arc::new(RwLock::new(processer)), signal::ctrl_c()).await;
 
     info!("退出");
     Ok(())
