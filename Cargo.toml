@@ -8,6 +8,7 @@ async-trait = "0.1.88"
 futures = "0.3.31"
 semver = "1.0.26"
 spop = { git = "https://github.com/pangbit/spop.git" }
+# spop = { path = "../spop" }
 thiserror = "2.0.12"
 tokio = { version = "1.45.0", features = ["full"] }
 tokio-util = { version = "0.7.15", features = ["codec"] }

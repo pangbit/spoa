@@ -50,6 +50,7 @@ async fn main() -> Result<()> {
     let socket = Socket::new(Domain::IPV4, Type::STREAM, None)?;
     let addr: SocketAddr = "0.0.0.0:33103".parse()?;
 
+    socket.set_reuse_address(true)?;
     socket.set_nonblocking(true)?;
     socket.set_keepalive(true)?;
 

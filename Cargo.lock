@@ -461,7 +461,7 @@ dependencies = [
 [[package]]
 name = "spop"
 version = "0.9.1"
-source = "git+https://github.com/pangbit/spop.git#ce468043104379ce1ca8412c0e18ed49553810a0"
+source = "git+https://github.com/pangbit/spop.git#8d87cf9b1a12949e0cdd24b9be0025262ef6b05a"
 dependencies = [
  "anyhow",
  "bytes",
