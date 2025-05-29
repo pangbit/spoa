@@ -10,7 +10,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{Semaphore, broadcast, mpsc};
 use tokio::time::{self, Duration};
 use tokio_util::codec::Framed;
-use tracing::{error, info, instrument};
+use tracing::{error, info};
 
 use super::{Error, Result, Shutdown};
 
@@ -18,7 +18,7 @@ use super::{Error, Result, Shutdown};
 pub trait IProcesser {
     async fn handle_messages(
         &self,
-        messages: &Vec<Message>,
+        messages: &[Message],
     ) -> Result<Vec<(VarScope, String, TypedData)>>;
 }
 
@@ -141,7 +141,6 @@ impl Listener {
 }
 
 impl Handler {
-    #[instrument(skip(self))]
     async fn run(&mut self) -> Result<()> {
         while !self.shutdown.is_shutdown() {
             let maybe_frame = tokio::select! {

@@ -14,7 +14,7 @@ struct MyProcesser {}
 impl IProcesser for MyProcesser {
     async fn handle_messages(
         &self,
-        messages: &Vec<Message>,
+        messages: &[Message],
     ) -> spoa::Result<Vec<(VarScope, String, TypedData)>> {
         for msg in messages {
             info!("msg: {}", msg.name);
