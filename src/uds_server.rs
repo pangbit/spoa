@@ -5,7 +5,7 @@ use futures::{SinkExt, StreamExt};
 use semver::Version;
 use spop::frames::{Ack, AgentDisconnect, AgentHello, FrameCapabilities, HaproxyHello};
 use spop::{FramePayload, FrameType, SpopCodec, SpopFrame};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::{RwLock, Semaphore, broadcast, mpsc};
 use tokio::time::{self, Duration};
 use tokio_util::codec::Framed;
@@ -14,7 +14,7 @@ use tracing::{error, info};
 use super::{Error, ProcesserHolder, Result, Shutdown};
 
 struct Listener {
-    listener: TcpListener,
+    listener: UnixListener,
     limit_connections: Arc<Semaphore>,
     notify_shutdown: broadcast::Sender<()>,
     shutdown_complete_tx: mpsc::Sender<()>,
@@ -23,7 +23,7 @@ struct Listener {
 }
 
 struct Handler {
-    socket: Framed<TcpStream, SpopCodec>,
+    socket: Framed<UnixStream, SpopCodec>,
     read_timeout: Duration,
     write_timeout: Duration,
 
@@ -36,7 +36,7 @@ struct Handler {
 const MAX_CONNECTIONS: usize = 100_000;
 
 pub async fn run(
-    listener: TcpListener,
+    listener: UnixListener,
     processer: Arc<RwLock<ProcesserHolder>>,
     shutdown: impl Future,
 ) {
@@ -111,7 +111,7 @@ impl Listener {
         }
     }
 
-    async fn accept(&mut self) -> Result<TcpStream> {
+    async fn accept(&mut self) -> Result<UnixStream> {
         let mut backoff = 1;
 
         loop {
