@@ -7,7 +7,7 @@ use spop::frame::Message;
 use spop::frames::{Ack, AgentDisconnect, AgentHello, FrameCapabilities, HaproxyHello};
 use spop::{FramePayload, FrameType, SpopCodec, SpopFrame, TypedData, VarScope};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{Semaphore, broadcast, mpsc};
+use tokio::sync::{RwLock, Semaphore, broadcast, mpsc};
 use tokio::time::{self, Duration};
 use tokio_util::codec::Framed;
 use tracing::{error, info};
@@ -22,13 +22,34 @@ pub trait IProcesser {
     ) -> Result<Vec<(VarScope, String, TypedData)>>;
 }
 
+pub struct ProcesserHolder {
+    processer: Box<dyn IProcesser + Sync + Send>,
+}
+
+impl ProcesserHolder {
+    pub fn new(processer: Box<dyn IProcesser + Sync + Send>) -> Self {
+        Self { processer }
+    }
+
+    pub fn set_processer(&mut self, new_processer: Box<dyn IProcesser + Sync + Send>) {
+        self.processer = new_processer;
+    }
+
+    pub fn replace_processer(
+        &mut self,
+        new_processer: Box<dyn IProcesser + Sync + Send>,
+    ) -> Box<dyn IProcesser + Sync + Send> {
+        std::mem::replace(&mut self.processer, new_processer)
+    }
+}
+
 struct Listener {
     listener: TcpListener,
     limit_connections: Arc<Semaphore>,
     notify_shutdown: broadcast::Sender<()>,
     shutdown_complete_tx: mpsc::Sender<()>,
 
-    processer: Arc<Box<dyn IProcesser + Sync + Send>>,
+    processer_holder: Arc<RwLock<ProcesserHolder>>,
 }
 
 struct Handler {
@@ -39,14 +60,14 @@ struct Handler {
     shutdown: Shutdown,
     _shutdown_complete: mpsc::Sender<()>,
 
-    processer: Arc<Box<dyn IProcesser + Sync + Send>>,
+    processer_holder: Arc<RwLock<ProcesserHolder>>,
 }
 
 const MAX_CONNECTIONS: usize = 100_000;
 
 pub async fn run(
     listener: TcpListener,
-    processer: Arc<Box<dyn IProcesser + Sync + Send>>,
+    processer: Arc<RwLock<ProcesserHolder>>,
     shutdown: impl Future,
 ) {
     let (notify_shutdown, _) = broadcast::channel(1);
@@ -58,7 +79,7 @@ pub async fn run(
         notify_shutdown,
         shutdown_complete_tx,
 
-        processer: Arc::clone(&processer),
+        processer_holder: Arc::clone(&processer),
     };
 
     tokio::select! {
@@ -104,7 +125,7 @@ impl Listener {
                 shutdown: Shutdown::new(self.notify_shutdown.subscribe()),
                 _shutdown_complete: self.shutdown_complete_tx.clone(),
 
-                processer: Arc::clone(&self.processer),
+                processer_holder: Arc::clone(&self.processer_holder),
 
                 read_timeout: Duration::from_secs(30),
                 write_timeout: Duration::from_secs(30),
@@ -230,7 +251,14 @@ impl Handler {
                     if let FramePayload::ListOfMessages(messages) = &frame.payload() {
                         let meta = frame.metadata();
 
-                        let ack = match self.processer.handle_messages(messages).await {
+                        let ack = match self
+                            .processer_holder
+                            .read()
+                            .await
+                            .processer
+                            .handle_messages(messages)
+                            .await
+                        {
                             Ok(vars) => {
                                 // Create the Ack frame
                                 vars.into_iter().fold(

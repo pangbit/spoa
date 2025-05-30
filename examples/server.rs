@@ -3,12 +3,17 @@ use std::{net::SocketAddr, sync::Arc};
 use anyhow::Result;
 use socket2::{Domain, Socket, Type};
 use spop::{TypedData, VarScope, frame::Message};
-use tokio::{net::TcpListener, signal, sync::RwLock};
+use tokio::{net::TcpListener, signal, sync::RwLock, time};
 use tracing::info;
 
-use spoa::{self, server::IProcesser};
+use spoa::{
+    self,
+    server::{IProcesser, ProcesserHolder},
+};
 
-struct MyProcesser {}
+struct MyProcesser {
+    id: u32,
+}
 
 #[async_trait::async_trait]
 impl IProcesser for MyProcesser {
@@ -17,7 +22,7 @@ impl IProcesser for MyProcesser {
         messages: &[Message],
     ) -> spoa::Result<Vec<(VarScope, String, TypedData)>> {
         for msg in messages {
-            info!("msg: {}", msg.name);
+            info!("id: {}, msg: {}", self.id, msg.name);
 
             // msg.args.iter().for_each(|(k, v)| match v {
             //     TypedData::Binary(b) => {
@@ -40,7 +45,8 @@ impl IProcesser for MyProcesser {
     }
 }
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main(flavor = "multi_thread", worker_threads = 4)]
+// #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt().init();
     info!("启动");
@@ -58,9 +64,31 @@ async fn main() -> Result<()> {
     socket.listen(128)?;
 
     let listener = TcpListener::from_std(socket.into())?;
-    let processer = Box::new(MyProcesser {});
 
-    spoa::server::run(listener, Arc::new(RwLock::new(processer)), signal::ctrl_c()).await;
+    let mut count = 0;
+
+    let processer = Box::new(MyProcesser { id: count });
+    let processer_holder = Arc::new(RwLock::new(ProcesserHolder::new(processer)));
+
+    tokio::spawn({
+        let process_holder_ = Arc::clone(&processer_holder);
+
+        async move {
+            let mut tick = time::interval(time::Duration::from_secs(5));
+
+            loop {
+                tick.tick().await;
+                count += 1;
+
+                let processer = Box::new(MyProcesser { id: count });
+
+                info!("RELOAD, {}", count);
+                process_holder_.write().await.set_processer(processer);
+            }
+        }
+    });
+
+    spoa::server::run(listener, processer_holder, signal::ctrl_c()).await;
 
     info!("退出");
     Ok(())

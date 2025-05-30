@@ -29,7 +29,7 @@ async fn main() -> Result<()> {
 
     let count = Arc::new(atomic::AtomicU32::new(0));
 
-    for _ in 0..10 {
+    for _ in 0..30 {
         tokio::spawn({
             let count = Arc::clone(&count);
 
