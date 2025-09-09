@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use futures::{SinkExt, StreamExt};
 use semver::Version;
-use spop::frames::{Ack, AgentDisconnect, AgentHello, FrameCapabilities, HaproxyHello};
+use spop::frames::{Ack, AgentDisconnectFrame, AgentHelloFrame, FrameCapabilities, HaproxyHello};
 use spop::{FramePayload, FrameType, SpopCodec, SpopFrame};
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::{RwLock, Semaphore, broadcast, mpsc};
@@ -168,11 +168,11 @@ impl Handler {
                     let version = Version::parse("2.0.0").unwrap();
 
                     // Create the AgentHello with the values
-                    let agent_hello = AgentHello {
+                    let agent_hello = AgentHelloFrame::new(
                         version,
                         max_frame_size,
-                        capabilities: vec![FrameCapabilities::Pipelining],
-                    };
+                        vec![FrameCapabilities::Pipelining],
+                    );
 
                     info!("Sending AgentHello: {:?}", agent_hello.payload());
 
@@ -195,11 +195,7 @@ impl Handler {
 
                 // Respond with AgentDisconnect frame
                 FrameType::HaproxyDisconnect => {
-                    let agent_disconnect = AgentDisconnect {
-                        status_code: 0,
-                        message: "Goodbye".to_string(),
-                    };
-
+                    let agent_disconnect = AgentDisconnectFrame::new(0, "Goodbye".to_string());
                     info!("Sending AgentDisconnect: {:?}", agent_disconnect.payload());
 
                     match time::timeout(

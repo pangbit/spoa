@@ -37,7 +37,23 @@ impl IProcesser for MyProcesser {
             // })
         }
 
-        Ok(Vec::new())
+        Ok(vec![
+            (
+                VarScope::Transaction,
+                "spoa.v1".to_string(),
+                TypedData::String("hello".to_string()),
+            ),
+            (
+                VarScope::Session,
+                "spoa.v2".to_string(),
+                TypedData::String("world".to_string()),
+            ),
+            (
+                VarScope::Request,
+                "spoa.v3".to_string(),
+                TypedData::String("!!!".to_string()),
+            ),
+        ])
     }
 }
 

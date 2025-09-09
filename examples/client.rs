@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
 
             async move {
                 loop {
-                    let socket = TcpStream::connect("192.168.12.150:33103").await.unwrap();
+                    let socket = TcpStream::connect("192.168.12.123:33103").await.unwrap();
                     let mut socket = Framed::new(socket, SpopCodec);
 
                     //haproxy hello
@@ -57,7 +57,7 @@ async fn main() -> Result<()> {
                     };
 
                     socket.send(Box::new(frame)).await.unwrap();
-                    let _frame = socket.next().await;
+                    let _frame = socket.next().await.unwrap().unwrap();
 
                     //notify
                     let payload = NotifyFrame {
@@ -72,7 +72,8 @@ async fn main() -> Result<()> {
                         }],
                     };
                     socket.send(Box::new(payload)).await.unwrap();
-                    let _frame = socket.next().await;
+                    let _frame = socket.next().await.unwrap().unwrap();
+                    // info!("notify: {:?}", frame);
 
                     //haproxy disconnect
                     let payload = HaproxyDisconnect {
@@ -90,7 +91,8 @@ async fn main() -> Result<()> {
                     };
 
                     socket.send(Box::new(frame)).await.unwrap();
-                    let _frame = socket.next().await;
+                    let _frame = socket.next().await.unwrap().unwrap();
+                    // info!("haproxy disconnect: {:?}", frame);
 
                     count.fetch_add(1, atomic::Ordering::Relaxed);
                 }
