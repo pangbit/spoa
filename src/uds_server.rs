@@ -91,7 +91,7 @@ impl Listener {
             let socket = self.accept().await?;
 
             let mut handler = Handler {
-                socket: Framed::new(socket, SpopCodec),
+                socket: Framed::new(socket, SpopCodec { max_frame_size: 0 }),
                 shutdown: Shutdown::new(self.notify_shutdown.subscribe()),
                 _shutdown_complete: self.shutdown_complete_tx.clone(),
 

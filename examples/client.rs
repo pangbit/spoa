@@ -36,7 +36,7 @@ async fn main() -> Result<()> {
             async move {
                 loop {
                     let socket = TcpStream::connect("192.168.12.123:33103").await.unwrap();
-                    let mut socket = Framed::new(socket, SpopCodec);
+                    let mut socket = Framed::new(socket, SpopCodec { max_frame_size: 0 });
 
                     //haproxy hello
                     let payload = HaproxyHello {
