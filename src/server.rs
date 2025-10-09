@@ -9,7 +9,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{RwLock, Semaphore, broadcast, mpsc};
 use tokio::time::{self, Duration};
 use tokio_util::codec::Framed;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use super::{Error, ProcesserHolder, Result, Shutdown};
 
@@ -239,7 +239,7 @@ impl Handler {
                         };
 
                         // Create the response frame
-                        info!("Sending Ack: {:?}", ack.payload());
+                        debug!("Sending Ack: {:?}", ack.payload());
                         match time::timeout(self.write_timeout, self.socket.send(Box::new(ack)))
                             .await
                         {
