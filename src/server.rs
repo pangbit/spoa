@@ -174,7 +174,7 @@ impl Handler {
                         vec![FrameCapabilities::Pipelining],
                     );
 
-                    info!("Sending AgentHello: {:?}", agent_hello.payload());
+                    debug!("Sending AgentHello: {:?}", agent_hello.payload());
 
                     match time::timeout(self.write_timeout, self.socket.send(Box::new(agent_hello)))
                         .await
