@@ -103,7 +103,7 @@ impl Listener {
 
             tokio::spawn(async move {
                 if let Err(err) = handler.run().await {
-                    error!(cause = ?err, "connection error");
+                    debug!(cause = ?err, "connection error");
                 }
 
                 drop(permit)
