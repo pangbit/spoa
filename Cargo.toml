@@ -22,3 +22,11 @@ tracing-subscriber = "0.3"
 [[example]]
 name = "server"
 path = "examples/server.rs"
+
+[[example]]
+name = "minimal"
+path = "examples/minimal.rs"
+
+[[example]]
+name = "stats"
+path = "examples/stats.rs"
