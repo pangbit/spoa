@@ -25,17 +25,19 @@ use tracing::info;
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
-    info!("启动");
+    let addr = std::env::var("SPOA_SERVER_ADDR").unwrap_or_else(|_| "127.0.0.1:33103".to_string());
+    info!("connecting to {}", addr);
 
     let count = Arc::new(atomic::AtomicU32::new(0));
 
     for _ in 0..30 {
         tokio::spawn({
             let count = Arc::clone(&count);
+            let addr = addr.clone();
 
             async move {
                 loop {
-                    let socket = TcpStream::connect("192.168.12.123:33103").await.unwrap();
+                    let socket = TcpStream::connect(&addr).await.unwrap();
                     let mut socket = Framed::new(socket, SpopCodec { max_frame_size: 0 });
 
                     //haproxy hello
@@ -73,7 +75,6 @@ async fn main() -> Result<()> {
                     };
                     socket.send(Box::new(payload)).await.unwrap();
                     let _frame = socket.next().await.unwrap().unwrap();
-                    // info!("notify: {:?}", frame);
 
                     //haproxy disconnect
                     let payload = HaproxyDisconnect {
@@ -92,7 +93,6 @@ async fn main() -> Result<()> {
 
                     socket.send(Box::new(frame)).await.unwrap();
                     let _frame = socket.next().await.unwrap().unwrap();
-                    // info!("haproxy disconnect: {:?}", frame);
 
                     count.fetch_add(1, atomic::Ordering::Relaxed);
                 }

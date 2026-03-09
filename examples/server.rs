@@ -19,22 +19,6 @@ impl IProcesser for MyProcesser {
     ) -> spoa::Result<Vec<(VarScope, String, TypedData)>> {
         for msg in messages {
             info!("id: {}, msg: {}", self.id, msg.name);
-
-            // msg.args.iter().for_each(|(k, v)| match v {
-            //     TypedData::Binary(b) => {
-            //         info!(
-            //             "{}: {}",
-            //             k,
-            //             String::from_utf8_lossy(&b[0..b.len().min(1024)])
-            //         )
-            //     }
-            //     TypedData::String(s) => {
-            //         info!("{}: {}", k, s)
-            //     }
-            //     _ => {
-            //         info!("{}", k)
-            //     }
-            // })
         }
 
         Ok(vec![
@@ -58,12 +42,9 @@ impl IProcesser for MyProcesser {
 }
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 4)]
-// #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt().init();
     info!("启动");
-
-    // let listener = TcpListener::bind("0.0.0.0:33103").await.expect("绑定失败");
 
     let socket = Socket::new(Domain::IPV4, Type::STREAM, None)?;
     let addr: SocketAddr = "0.0.0.0:33103".parse()?;
