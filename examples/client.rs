@@ -8,12 +8,12 @@ use std::{
 use anyhow::Result;
 use futures::{SinkExt, StreamExt};
 use semver::Version;
-use spop::{
+use spoa::{
     FrameFlags, Metadata, SpopCodec,
-    frame::Message,
-    frames::{
-        FrameCapabilities, HaproxyDisconnect, HaproxyHello,
-        haproxy_disconnect::HaproxyDisconnectFrame, haproxy_hello::HaproxyHelloFrame,
+    protocol::frame::Message,
+    protocol::frames::{
+        FrameCapabilities, HaproxyDisconnect,
+        haproxy_disconnect::HaproxyDisconnectFrame, haproxy_hello::{HaproxyHello, HaproxyHelloFrame},
         notify::NotifyFrame,
     },
 };

@@ -1,0 +1,52 @@
+use crate::protocol::{
+    FrameFlags, SpopFrame,
+    frame::{FramePayload, FrameType, Message, Metadata},
+};
+
+/// Frame Notify
+///
+/// <https://github.com/haproxy/haproxy/blob/master/doc/SPOE.txt#L939>
+///
+/// ```text
+/// 3.2.6. Frame: NOTIFY
+/// ---------------------
+///
+/// Information are sent to the agents inside NOTIFY frames. These frames are
+/// attached to a stream, so STREAM-ID and FRAME-ID must be set. The payload of
+/// NOTIFY frames is a LIST-OF-MESSAGES.
+///
+/// NOTIFY frames must be acknowledge by agents sending an ACK frame, repeating
+/// right STREAM-ID and FRAME-ID.
+/// ```
+#[derive(Debug)]
+pub struct NotifyFrame {
+    pub metadata: Metadata,
+    pub messages: Vec<Message>,
+}
+
+impl NotifyFrame {
+    pub fn new(stream_id: u64, frame_id: u64, messages: Vec<Message>) -> Self {
+        Self {
+            metadata: Metadata {
+                flags: FrameFlags::new(true, false),
+                stream_id,
+                frame_id,
+            },
+            messages,
+        }
+    }
+}
+
+impl SpopFrame for NotifyFrame {
+    fn frame_type(&self) -> &FrameType {
+        &FrameType::Notify
+    }
+
+    fn metadata(&self) -> Metadata {
+        self.metadata.clone()
+    }
+
+    fn payload(&self) -> FramePayload {
+        FramePayload::ListOfMessages(self.messages.clone())
+    }
+}

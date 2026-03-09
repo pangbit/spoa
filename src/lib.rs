@@ -3,15 +3,25 @@ pub use error::Error;
 pub use error::Result;
 
 mod shutdown;
-use shutdown::Shutdown;
+pub(crate) use shutdown::Shutdown;
 
+pub mod protocol;
 pub mod server;
-pub mod uds_server;
 
-pub use spop::{TypedData, VarScope, frame::Message};
+// Re-export protocol types for convenience
+pub use protocol::SpopFrame;
+pub use protocol::types::TypedData;
+pub use protocol::actions::{Action, VarScope};
+pub use protocol::frame::{Message, FramePayload, FrameType, Metadata, FrameFlags};
+pub use protocol::codec::SpopCodec;
+pub use protocol::frames::{
+    Ack, AgentDisconnect, AgentDisconnectFrame, AgentHello, AgentHelloFrame,
+    FrameCapabilities, HaproxyDisconnect, HaproxyHello,
+};
+pub use protocol::varint::{decode_varint, encode_varint};
 
 #[async_trait::async_trait]
-pub trait IProcesser {
+pub trait IProcesser: Send + Sync {
     async fn handle_messages(
         &self,
         messages: &[Message],

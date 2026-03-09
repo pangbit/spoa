@@ -1,23 +1,23 @@
 [package]
 name = "spoa"
-version = "0.1.0"
-edition = "2024"
+version = "0.2.0"
+edition = "2021"
 
 [dependencies]
-async-trait = "0.1.88"
-futures = "0.3.31"
-semver = "1.0.26"
-spop = { git = "https://github.com/pangbit/spop.git" }
-# spop = { path = "../spop" }
-thiserror = "2.0.12"
-tokio = { version = "1.45.0", features = ["full"] }
-tokio-util = { version = "0.7.15", features = ["codec"] }
-tracing = "0.1.41"
+async-trait = "0.1"
+bytes = "1"
+futures = "0.3"
+nom = "8.0"
+semver = "1.0"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["codec"] }
+tracing = "0.1"
 
 [dev-dependencies]
-anyhow = "1.0.98"
+anyhow = "1"
 socket2 = "0.6"
-tracing-subscriber = "0.3.19"
+tracing-subscriber = "0.3"
 
 [[example]]
 name = "server"
