@@ -173,7 +173,7 @@ impl<S: AsyncRead + AsyncWrite + Send + Unpin> Handler<S> {
             match frame.frame_type() {
                 FrameType::HaproxyHello => {
                     let hello = HaproxyHello::try_from(frame.payload())
-                        .map_err(Error::InvalidHaproxyHello)?;
+                        .map_err(Error::HandshakeFailed)?;
 
                     let max_frame_size = hello.max_frame_size;
                     let is_healthcheck = hello.healthcheck.unwrap_or(false);
