@@ -7,6 +7,7 @@ pub(crate) use shutdown::Shutdown;
 
 pub mod protocol;
 pub mod server;
+pub use server::ServerConfig;
 
 // Re-export protocol types for convenience
 pub use protocol::SpopFrame;

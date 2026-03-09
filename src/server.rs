@@ -14,7 +14,29 @@ use crate::protocol::frames::{Ack, AgentDisconnectFrame, AgentHelloFrame, FrameC
 use crate::protocol::{FramePayload, FrameType, SpopCodec, SpopFrame};
 use crate::{Error, ProcesserHolder, Result, Shutdown};
 
-const MAX_CONNECTIONS: usize = 100_000;
+/// Server configuration with sensible defaults.
+#[derive(Debug, Clone)]
+pub struct ServerConfig {
+    /// Read timeout per connection. Default: 30s.
+    pub read_timeout: Duration,
+    /// Write timeout per connection. Default: 30s.
+    pub write_timeout: Duration,
+    /// Maximum concurrent connections. Default: 100_000.
+    pub max_connections: usize,
+    /// Maximum SPOP frame size in bytes. Default: 16_384.
+    pub max_frame_size: usize,
+}
+
+impl Default for ServerConfig {
+    fn default() -> Self {
+        Self {
+            read_timeout: Duration::from_secs(30),
+            write_timeout: Duration::from_secs(30),
+            max_connections: 100_000,
+            max_frame_size: 16_384,
+        }
+    }
+}
 
 /// Trait abstracting TCP and Unix socket listeners.
 pub trait SpoaListener: Send + 'static {
@@ -43,6 +65,7 @@ impl SpoaListener for UnixListener {
 
 struct Listener<L: SpoaListener> {
     listener: L,
+    config: ServerConfig,
     limit_connections: Arc<Semaphore>,
     notify_shutdown: broadcast::Sender<()>,
     shutdown_complete_tx: mpsc::Sender<()>,
@@ -62,13 +85,15 @@ pub async fn run<L: SpoaListener>(
     listener: L,
     processer: Arc<RwLock<ProcesserHolder>>,
     shutdown: impl Future,
+    config: ServerConfig,
 ) {
     let (notify_shutdown, _) = broadcast::channel(1);
     let (shutdown_complete_tx, mut shutdown_complete_rx) = mpsc::channel(1);
 
     let mut server = Listener {
         listener,
-        limit_connections: Arc::new(Semaphore::new(MAX_CONNECTIONS)),
+        config: config.clone(),
+        limit_connections: Arc::new(Semaphore::new(config.max_connections)),
         notify_shutdown,
         shutdown_complete_tx,
         processer_holder: Arc::clone(&processer),
@@ -112,12 +137,12 @@ impl<L: SpoaListener> Listener<L> {
             let socket = self.accept_with_backoff().await?;
 
             let mut handler = Handler {
-                socket: Framed::new(socket, SpopCodec { max_frame_size: 0 }),
+                socket: Framed::new(socket, SpopCodec { max_frame_size: self.config.max_frame_size }),
                 shutdown: Shutdown::new(self.notify_shutdown.subscribe()),
                 _shutdown_complete: self.shutdown_complete_tx.clone(),
                 processer_holder: Arc::clone(&self.processer_holder),
-                read_timeout: Duration::from_secs(30),
-                write_timeout: Duration::from_secs(30),
+                read_timeout: self.config.read_timeout,
+                write_timeout: self.config.write_timeout,
             };
 
             tokio::spawn(async move {
