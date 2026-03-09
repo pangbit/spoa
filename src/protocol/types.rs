@@ -75,7 +75,7 @@ impl TypedData {
             }
             Self::Int32(val) => {
                 buf.push(TYPE_INT32);
-                buf.extend(encode_varint(*val as u64));
+                buf.extend(encode_varint(*val as u32 as u64));
             }
             Self::UInt32(val) => {
                 buf.push(TYPE_UINT32);
@@ -173,6 +173,7 @@ pub fn typed_data(input: &[u8]) -> IResult<&[u8], TypedData> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::encode_varint;
     use std::net::{Ipv4Addr, Ipv6Addr};
 
     /// List of test cases for type parsing
@@ -189,6 +190,26 @@ mod tests {
             // Type 2: 32-bit signed integer (INT32)
             // 0x02 followed by a varint-encoded value (here one-byte: 123)
             ("Int32", vec![0x02, 0x7B], TypedData::Int32(123)),
+            // Int32 negative: -1 should encode as u32 bit pattern (0xFFFFFFFF varint)
+            (
+                "Int32 negative -1",
+                {
+                    let mut v = vec![0x02]; // TYPE_INT32
+                    v.extend(encode_varint((-1i32 as u32) as u64));
+                    v
+                },
+                TypedData::Int32(-1),
+            ),
+            // Int32 negative: i32::MIN
+            (
+                "Int32 min",
+                {
+                    let mut v = vec![0x02];
+                    v.extend(encode_varint((i32::MIN as u32) as u64));
+                    v
+                },
+                TypedData::Int32(i32::MIN),
+            ),
             // Type 3: 32-bit unsigned integer (UINT32)
             ("UInt32", vec![0x03, 0x7B], TypedData::UInt32(123)),
             // Type 4: 64-bit signed integer (INT64)
