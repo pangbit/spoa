@@ -38,6 +38,32 @@ impl Default for ServerConfig {
     }
 }
 
+/// Builder for configuring and running a SPOA server.
+pub struct Server<L: SpoaListener> {
+    listener: L,
+    processer: Arc<RwLock<ProcesserHolder>>,
+    config: ServerConfig,
+}
+
+impl<L: SpoaListener> Server<L> {
+    pub fn new(listener: L, processer: Arc<RwLock<ProcesserHolder>>) -> Self {
+        Self {
+            listener,
+            processer,
+            config: ServerConfig::default(),
+        }
+    }
+
+    pub fn config(mut self, config: ServerConfig) -> Self {
+        self.config = config;
+        self
+    }
+
+    pub async fn run(self, shutdown: impl Future) {
+        run(self.listener, self.processer, shutdown, self.config).await;
+    }
+}
+
 /// Trait abstracting TCP and Unix socket listeners.
 pub trait SpoaListener: Send + 'static {
     type Stream: AsyncRead + AsyncWrite + Send + Unpin + 'static;
