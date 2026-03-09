@@ -1,3 +1,12 @@
+//! SPOP server implementation.
+//!
+//! Provides [`Server`] (builder pattern) and [`run`] (function) for starting
+//! an async SPOP agent server. Supports both TCP and Unix sockets via the
+//! [`SpoaListener`] trait.
+//!
+//! Configuration is done through [`ServerConfig`] which controls timeouts,
+//! connection limits, and frame sizes.
+
 use std::future::Future;
 use std::sync::Arc;
 
