@@ -70,7 +70,7 @@ impl TypedData {
                 buf.push(TYPE_NULL);
             }
             Self::Bool(val) => {
-                let flags = if *val { 0x01 } else { 0x00 } << 4;
+                let flags = (if *val { 0x01u8 } else { 0x00u8 }) << 4;
                 buf.push(flags | TYPE_BOOL);
             }
             Self::Int32(val) => {
