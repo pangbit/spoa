@@ -2,7 +2,7 @@ use crate::protocol::{SpopFrame, parser::parse_frame};
 use bytes::{Buf, BufMut, BytesMut};
 use std::io;
 use tokio_util::codec::{Decoder, Encoder};
-use tracing::warn;
+
 
 pub struct SpopCodec {
     pub max_frame_size: usize, // Maximum frame size in bytes, 0 for unlimited
@@ -47,8 +47,10 @@ impl Encoder<Box<dyn SpopFrame>> for SpopCodec {
         let serialized = frame.serialize()?;
 
         if self.max_frame_size > 0 && serialized.len() > self.max_frame_size {
-            warn!("frame too large ({} bytes), dropped", serialized.len());
-            return Ok(());
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("frame too large: {} bytes, max {} bytes", serialized.len(), self.max_frame_size),
+            ));
         }
 
         dst.put_slice(&serialized);
