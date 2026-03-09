@@ -264,32 +264,27 @@ fn parse_string(input: &[u8]) -> IResult<&[u8], String> {
 /// LIST-OF-MESSAGES : [ <MESSAGE-NAME> <NB-ARGS:1 byte> <KV-LIST> ... ]
 /// MESSAGE-NAME     : <STRING>
 fn parse_list_of_messages(input: &[u8]) -> IResult<&[u8], Vec<Message>> {
-    let (remaining, message) = parse_string(input)?;
+    all_consuming(many0(complete(parse_single_message))).parse(input)
+}
 
-    let (remaining, nb_args_bytes) = take(1usize)(remaining)?;
+/// Parse a single message: name + nb_args + KV pairs
+fn parse_single_message(input: &[u8]) -> IResult<&[u8], Message> {
+    let (remaining, name) = parse_string(input)?;
 
-    let nb_args = nb_args_bytes[0] as usize;
+    let (remaining, nb_args) = be_u8(remaining)?;
+    let nb_args = nb_args as usize;
 
-    let mut parser = all_consuming(many_m_n(nb_args, nb_args, parse_key_value_pair));
+    let (remaining, kv_list) = many_m_n(nb_args, nb_args, parse_key_value_pair).parse(remaining)?;
 
-    let (remaining, kv_list) = parser.parse(remaining)?;
-
-    let mut map = HashMap::new();
-
-    // handle duplicate keys
+    let mut args = HashMap::new();
     for (key, value) in kv_list {
-        if map.contains_key(&key) {
+        if args.contains_key(&key) {
             return Err(nom::Err::Failure(Error::new(input, ErrorKind::Tag)));
         }
-        map.insert(key, value);
+        args.insert(key, value);
     }
 
-    let msg = Message {
-        name: message,
-        args: map,
-    };
-
-    Ok((remaining, vec![msg]))
+    Ok((remaining, Message { name, args }))
 }
 
 fn parse_action(input: &[u8]) -> IResult<&[u8], Action> {
@@ -368,6 +363,55 @@ mod tests {
             0x65, 0x63, 0x6b,
         0x11, // TYPE=BOOLEAN, true
     ];
+
+    #[test]
+    fn test_parse_notify_multiple_messages() {
+        use crate::protocol::frames::notify::NotifyFrame;
+
+        // Build a NotifyFrame with 2 messages
+        let messages = vec![
+            Message {
+                name: "msg1".to_string(),
+                args: {
+                    let mut m = HashMap::new();
+                    m.insert("key1".to_string(), TypedData::String("val1".to_string()));
+                    m
+                },
+            },
+            Message {
+                name: "msg2".to_string(),
+                args: {
+                    let mut m = HashMap::new();
+                    m.insert("key2".to_string(), TypedData::UInt32(42));
+                    m
+                },
+            },
+        ];
+
+        let frame = NotifyFrame::new(1, 1, messages);
+
+        // Serialize and parse back
+        let serialized = frame.serialize().unwrap();
+        let (_, parsed) = parse_frame(&serialized).unwrap();
+
+        assert_eq!(parsed.frame_type(), &FrameType::Notify);
+        match parsed.payload() {
+            FramePayload::ListOfMessages(msgs) => {
+                assert_eq!(msgs.len(), 2, "Expected 2 messages, got {}", msgs.len());
+                assert_eq!(msgs[0].name, "msg1");
+                assert_eq!(msgs[1].name, "msg2");
+                assert_eq!(
+                    msgs[0].args.get("key1"),
+                    Some(&TypedData::String("val1".to_string()))
+                );
+                assert_eq!(
+                    msgs[1].args.get("key2"),
+                    Some(&TypedData::UInt32(42))
+                );
+            }
+            _ => panic!("Expected ListOfMessages payload"),
+        }
+    }
 
     #[test]
     fn test_parse_haproxy_hello() {
