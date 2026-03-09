@@ -1,8 +1,8 @@
 # SPOA
 
-Rust implementation of HAProxy's SPOP (Stream Processing Offload Protocol) server framework.
+[中文文档](README.zh-CN.md)
 
-Build async SPOP agents that process HAProxy traffic and return computed variables back to HAProxy.
+Rust implementation of HAProxy's SPOP (Stream Processing Offload Protocol) agent framework. Serves as both the protocol maintainer and the production-ready Rust SDK, aiming to become the cross-language reference implementation and drive the protocol's evolution.
 
 ## Features
 
