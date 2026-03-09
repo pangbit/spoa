@@ -9,6 +9,7 @@
 
 use std::future::Future;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use futures::{SinkExt, StreamExt};
 use semver::Version;
@@ -22,6 +23,43 @@ use tracing::{debug, error, info};
 use crate::protocol::frames::{Ack, AgentDisconnectFrame, AgentHelloFrame, FrameCapabilities, HaproxyHello};
 use crate::protocol::{FramePayload, FrameType, SpopCodec, SpopFrame};
 use crate::{Error, ProcesserHolder, Result, Shutdown};
+
+/// Live server statistics, safe to read from any thread.
+///
+/// Obtain via [`Server::stats`] before calling [`Server::run`],
+/// then query counters while the server is running.
+#[derive(Debug, Default)]
+pub struct ServerStats {
+    /// Total connections accepted since server start.
+    pub total_connections: AtomicU64,
+    /// Currently active connections.
+    pub active_connections: AtomicU64,
+    /// Total NOTIFY messages processed.
+    pub total_messages: AtomicU64,
+    /// Total connection errors (timeout, parse, etc.).
+    pub total_errors: AtomicU64,
+}
+
+impl ServerStats {
+    /// Snapshot current stats as a plain struct (useful for logging/metrics export).
+    pub fn snapshot(&self) -> StatsSnapshot {
+        StatsSnapshot {
+            total_connections: self.total_connections.load(Ordering::Relaxed),
+            active_connections: self.active_connections.load(Ordering::Relaxed),
+            total_messages: self.total_messages.load(Ordering::Relaxed),
+            total_errors: self.total_errors.load(Ordering::Relaxed),
+        }
+    }
+}
+
+/// Point-in-time copy of server statistics.
+#[derive(Debug, Clone)]
+pub struct StatsSnapshot {
+    pub total_connections: u64,
+    pub active_connections: u64,
+    pub total_messages: u64,
+    pub total_errors: u64,
+}
 
 /// Server configuration with sensible defaults.
 #[derive(Debug, Clone)]
@@ -52,6 +90,7 @@ pub struct Server<L: SpoaListener> {
     listener: L,
     processer: Arc<RwLock<ProcesserHolder>>,
     config: ServerConfig,
+    stats: Arc<ServerStats>,
 }
 
 impl<L: SpoaListener> Server<L> {
@@ -60,6 +99,7 @@ impl<L: SpoaListener> Server<L> {
             listener,
             processer,
             config: ServerConfig::default(),
+            stats: Arc::new(ServerStats::default()),
         }
     }
 
@@ -68,8 +108,16 @@ impl<L: SpoaListener> Server<L> {
         self
     }
 
+    /// Returns a shared reference to live server statistics.
+    ///
+    /// Call this before [`run`](Server::run) to retain access to stats
+    /// while the server is running.
+    pub fn stats(&self) -> Arc<ServerStats> {
+        Arc::clone(&self.stats)
+    }
+
     pub async fn run(self, shutdown: impl Future) {
-        run(self.listener, self.processer, shutdown, self.config).await;
+        run(self.listener, self.processer, shutdown, self.config, Some(self.stats)).await;
     }
 }
 
@@ -101,6 +149,7 @@ impl SpoaListener for UnixListener {
 struct Listener<L: SpoaListener> {
     listener: L,
     config: ServerConfig,
+    stats: Arc<ServerStats>,
     limit_connections: Arc<Semaphore>,
     notify_shutdown: broadcast::Sender<()>,
     shutdown_complete_tx: mpsc::Sender<()>,
@@ -111,6 +160,7 @@ struct Handler<S: AsyncRead + AsyncWrite + Send + Unpin> {
     socket: Framed<S, SpopCodec>,
     read_timeout: Duration,
     write_timeout: Duration,
+    stats: Arc<ServerStats>,
     shutdown: Shutdown,
     _shutdown_complete: mpsc::Sender<()>,
     processer_holder: Arc<RwLock<ProcesserHolder>>,
@@ -121,13 +171,16 @@ pub async fn run<L: SpoaListener>(
     processer: Arc<RwLock<ProcesserHolder>>,
     shutdown: impl Future,
     config: ServerConfig,
+    stats: Option<Arc<ServerStats>>,
 ) {
+    let stats = stats.unwrap_or_default();
     let (notify_shutdown, _) = broadcast::channel(1);
     let (shutdown_complete_tx, mut shutdown_complete_rx) = mpsc::channel(1);
 
     let mut server = Listener {
         listener,
         config: config.clone(),
+        stats,
         limit_connections: Arc::new(Semaphore::new(config.max_connections)),
         notify_shutdown,
         shutdown_complete_tx,
@@ -171,6 +224,10 @@ impl<L: SpoaListener> Listener<L> {
 
             let socket = self.accept_with_backoff().await?;
 
+            let stats = Arc::clone(&self.stats);
+            stats.total_connections.fetch_add(1, Ordering::Relaxed);
+            stats.active_connections.fetch_add(1, Ordering::Relaxed);
+
             let mut handler = Handler {
                 socket: Framed::new(socket, SpopCodec { max_frame_size: self.config.max_frame_size }),
                 shutdown: Shutdown::new(self.notify_shutdown.subscribe()),
@@ -178,12 +235,15 @@ impl<L: SpoaListener> Listener<L> {
                 processer_holder: Arc::clone(&self.processer_holder),
                 read_timeout: self.config.read_timeout,
                 write_timeout: self.config.write_timeout,
+                stats: Arc::clone(&stats),
             };
 
             tokio::spawn(async move {
                 if let Err(err) = handler.run().await {
                     debug!(cause = ?err, "connection error");
+                    stats.total_errors.fetch_add(1, Ordering::Relaxed);
                 }
+                stats.active_connections.fetch_sub(1, Ordering::Relaxed);
                 drop(permit)
             });
         }
@@ -281,6 +341,7 @@ impl<S: AsyncRead + AsyncWrite + Send + Unpin> Handler<S> {
 
                 FrameType::Notify => {
                     if let FramePayload::ListOfMessages(messages) = &frame.payload() {
+                        self.stats.total_messages.fetch_add(1, Ordering::Relaxed);
                         let meta = frame.metadata();
 
                         let ack = match self

@@ -54,6 +54,7 @@ async fn start_server(
                 holder,
                 async { shutdown_rx.await.ok(); },
                 config,
+                None,
             )
             .await;
         }

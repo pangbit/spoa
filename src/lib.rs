@@ -43,7 +43,7 @@ pub(crate) use shutdown::Shutdown;
 
 pub mod protocol;
 pub mod server;
-pub use server::{Server, ServerConfig};
+pub use server::{Server, ServerConfig, ServerStats, StatsSnapshot};
 
 // Re-export protocol types for convenience
 pub use protocol::SpopFrame;

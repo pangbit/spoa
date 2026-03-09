@@ -53,7 +53,7 @@ async fn test_full_handshake() {
         async move {
             spoa::server::run(listener, holder, async {
                 shutdown_rx.await.ok();
-            }, spoa::server::ServerConfig::default())
+            }, spoa::server::ServerConfig::default(), None)
             .await;
         }
     });

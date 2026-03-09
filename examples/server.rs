@@ -81,7 +81,7 @@ async fn main() -> Result<()> {
         }
     });
 
-    spoa::server::run(listener, processer_holder, signal::ctrl_c(), spoa::server::ServerConfig::default()).await;
+    spoa::server::run(listener, processer_holder, signal::ctrl_c(), spoa::server::ServerConfig::default(), None).await;
 
     info!("退出");
     Ok(())
